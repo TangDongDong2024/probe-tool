@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+fastgettmp/
+output/
+*.tmp
+*.temp
+
+# Build outputs
+output.txt
+out.txt
+out.json
+*.json
+
+# Database
+*.db
+*.sqlite
+
+# Executables (don't track binary)
+# curl2.exe
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation builds
+docs/_build/
