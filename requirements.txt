@@ -1,0 +1,17 @@
+# Probe Tool v2 依赖包清单
+# 安装命令: pip install -r requirements.txt
+
+# HTTP请求库
+pycurl>=7.45.0
+
+# 异步DNS查询
+aiodns>=3.0.0
+
+# Windows管理接口（仅Windows）
+wmi>=1.5.1
+
+# ICMP Ping探测（可选，用于probe_icmpping.py）
+icmplib>=3.0.0
+
+# 网络数据包处理（可选，用于test_scapy.py）
+scapy>=2.5.0
