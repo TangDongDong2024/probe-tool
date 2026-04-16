@@ -247,8 +247,32 @@ def suburldown(tasklistfilename, outfile, isdnsblock, ip_type, localresult, dnss
     else:
         result_dict["result_main"]["dns_block"] = 0
 
+    # 过滤封堵IP，查找有效的非封堵IP
     if result_dict["result_main"]["host_ip"] == "" and len(localresult) > 0:
-        result_dict["result_main"]["host_ip"] = localresult[0]
+        blocked_ips_v4 = ['0.0.0.0', '127.0.0.1', '183.252.183.9', '183.252.183.98', '182.43.124.6']
+        blocked_ips_v6 = ['::1', '::', '::0', 'FE80::1', '2409:8034:3830:42::4']
+        blocked_ips = blocked_ips_v6 if ip_type == 6 else blocked_ips_v4
+
+        valid_ip_found = False
+        for ip in localresult:
+            # 跳过封堵IP
+            if ip in blocked_ips:
+                continue
+            # 检查IP类型是否匹配
+            if ip_type == 6 and ":" in ip:
+                result_dict["result_main"]["host_ip"] = ip
+                valid_ip_found = True
+                break
+            elif ip_type == 4 and "." in ip:
+                result_dict["result_main"]["host_ip"] = ip
+                valid_ip_found = True
+                break
+
+        # 如果没有找到有效IP，不设置默认值（让curl请求返回真实IP）
+        if not valid_ip_found and ip_type == 4:
+            result_dict["result_main"]["host_ip"] = "0.0.0.0"
+        elif not valid_ip_found and ip_type == 6:
+            result_dict["result_main"]["host_ip"] = "::"
 
     g_log.debug("check_error_code starting")
     check_success(result_dict,ip_type)

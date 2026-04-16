@@ -88,6 +88,29 @@ class Probe_HttpDown(object):
         elif self.ip_type==4:
             self.result_dict["remote_ip"]="0.0.0.0"
 
+    # 封堵IP黑名单（与probe_dns_block.py保持一致）
+    BLOCKED_IPS_v4 = ['0.0.0.0', '127.0.0.1', '183.252.183.9', '183.252.183.98', '182.43.124.6']
+    BLOCKED_IPS_v6 = ['::1', '::', '::0', 'FE80::1', '2409:8034:3830:42::4']
+
+    def _is_blocked_ip(self, ip: str, ip_type: int) -> bool:
+        """
+        判断IP是否为封堵IP
+
+        参数说明:
+            ip (str): 待检测的IP地址
+            ip_type (int): IP协议类型 - 4:IPv4, 6:IPv6
+
+        返回值:
+            bool: True表示是封堵IP，False表示正常IP
+        """
+        if ip_type == 4:
+            return ip in self.BLOCKED_IPS_v4
+        elif ip_type == 6:
+            return ip in self.BLOCKED_IPS_v6
+        else:
+            # 双栈模式：IPv4和IPv6封堵IP都算
+            return ip in self.BLOCKED_IPS_v4 or ip in self.BLOCKED_IPS_v6
+
     async def check_dns_block(self, domain):
         """
         DNS封堵检测
@@ -102,22 +125,35 @@ class Probe_HttpDown(object):
             # DNS封堵
             self.result_dict["dns_block"] = 1
             self.result_dict["is_success"] = 0
-            self.result_dict["response_code"]=1011
+            self.result_dict["response_code"] = 1011
         else:
             self.result_dict["dns_block"] = 0
-        if self.result_dict["remote_ip"] == "" and len(localresult) > 0:
-            if self.ip_type == 6:
-                self.result_dict["remote_ip"] = "::"
-                for dns_result in localresult:
-                    if dns_result.find(":") >= 0:
-                        self.result_dict["remote_ip"] = dns_result
-                        break
-            elif self.ip_type == 4:
-                self.result_dict["remote_ip"] = "0.0.0.0"
-                for dns_result in localresult:
-                    if dns_result.find(".") >= 0:
-                        self.result_dict["remote_ip"] = dns_result
-                        break
+
+        # 查找有效的非封堵IP作为remote_ip
+        # 只有当remote_ip为空或已被设置为封堵IP时才更新
+        if self.result_dict["remote_ip"] == "" or self._is_blocked_ip(self.result_dict["remote_ip"], self.ip_type):
+            valid_ip_found = False
+            for dns_result in localresult:
+                # 跳过封堵IP
+                if self._is_blocked_ip(dns_result, self.ip_type):
+                    continue
+
+                # 检查IP类型是否匹配
+                if self.ip_type == 6 and ":" in dns_result:
+                    self.result_dict["remote_ip"] = dns_result
+                    valid_ip_found = True
+                    break
+                elif self.ip_type == 4 and "." in dns_result:
+                    self.result_dict["remote_ip"] = dns_result
+                    valid_ip_found = True
+                    break
+
+            # 如果没有找到有效IP，设置默认值
+            if not valid_ip_found:
+                if self.ip_type == 6:
+                    self.result_dict["remote_ip"] = "::"
+                elif self.ip_type == 4:
+                    self.result_dict["remote_ip"] = "0.0.0.0"
 
     def check_jump_block(self):
         if self.result_dict["num_redirects"]>0:
@@ -494,12 +530,13 @@ class Probe_HttpDown(object):
         http_future = None
         dns_future = None
         execution_error = None
-        
+
         try:
             # 并行执行：HTTP请求 和 DNS检查
             http_future = loop.run_in_executor(executor, self.run_curl_request, cmd, output_file)
-            dns_future = self.check_dns_block(self.test_url)
-            
+            # DNS检查协程需要包装为任务
+            dns_future = asyncio.create_task(self.check_dns_block(self.test_url))
+
             # 等待两个任务完成
             done, pending = await asyncio.wait(
                 [http_future, dns_future],
